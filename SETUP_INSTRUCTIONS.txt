@@ -1,0 +1,152 @@
+================================================================
+  Stacher.py — YouTube to WAV Download Setup Instructions
+================================================================
+
+OVERVIEW
+--------
+Stacher.py downloads a YouTube song and saves it as a .wav file
+(44.1 kHz, 16-bit stereo) ready for use in the ML guitar tone pipeline.
+
+
+----------------------------------------------------------------
+STEP 1 — Install Python
+----------------------------------------------------------------
+If Python is not already installed:
+  1. Go to: https://www.python.org/downloads/
+  2. Download and run the installer.
+  3. IMPORTANT: Check the box "Add Python to PATH" during install.
+
+Verify it worked (open PowerShell and run):
+  python --version
+
+
+----------------------------------------------------------------
+STEP 2 — Install FFmpeg
+----------------------------------------------------------------
+FFmpeg converts the downloaded audio into WAV format.
+
+In PowerShell, run:
+  winget install Gyan.FFmpeg
+
+Then CLOSE and REOPEN PowerShell so it finds FFmpeg on PATH.
+
+Verify it worked:
+  ffmpeg -version
+
+
+----------------------------------------------------------------
+STEP 3 — Install the Python Dependency
+----------------------------------------------------------------
+In PowerShell, run:
+  pip install yt-dlp
+
+
+----------------------------------------------------------------
+STEP 4 — Get the Code
+----------------------------------------------------------------
+Place Stacher.py in a folder on your computer, for example:
+  C:\Users\YourName\Documents\guitar-ml\Stacher.py
+
+
+----------------------------------------------------------------
+STEP 5 — Run It
+----------------------------------------------------------------
+Open PowerShell, navigate to the folder where Stacher.py is, then run:
+
+  cd "C:\Users\YourName\Documents\guitar-ml"
+  python Stacher.py "https://www.youtube.com/watch?v=2ZBtPf7FOoM"
+
+  NOTE: Always wrap the YouTube URL in double quotes.
+        URLs contain & characters that PowerShell misreads without them.
+
+You will see a menu like this:
+
+  ============================================================
+    Title    : Queen - Killer Queen
+    Duration : 3m 12s
+    Uploader : Queen Official
+  ============================================================
+
+    #    Format ID    Codec      Bitrate       Size       Ext
+    --------------------------------------------------------
+    1    140          mp4a.40.2   130 kbps     3.0 MB     m4a
+    2    251          opus        126 kbps     2.9 MB     webm
+    ...
+
+    Enter number [1-7] (or press Enter for best quality):
+
+Press ENTER to auto-pick the best quality, or type a number and press Enter.
+
+The WAV file will be saved to a "downloads\" folder next to Stacher.py.
+
+
+----------------------------------------------------------------
+COMMAND QUICK REFERENCE
+----------------------------------------------------------------
+
+Interactive quality pick (recommended):
+  python Stacher.py "https://youtu.be/..."
+
+Skip the menu, auto-pick best quality:
+  python Stacher.py "https://youtu.be/..." --best
+
+Save to a custom folder:
+  python Stacher.py "https://youtu.be/..." --out "C:\my_songs"
+
+Specify a custom FFmpeg path (if FFmpeg is not on PATH):
+  python Stacher.py "https://youtu.be/..." --ffmpeg "C:\ffmpeg\bin\ffmpeg.exe"
+
+
+----------------------------------------------------------------
+OUTPUT
+----------------------------------------------------------------
+After running, your folder will look like this:
+
+  guitar-ml\
+  |-- Stacher.py
+  |-- downloads\
+      |-- Queen - Killer Queen.wav    <-- 44.1 kHz, 16-bit stereo WAV
+
+
+----------------------------------------------------------------
+TIPS FOR BEST AUDIO QUALITY
+----------------------------------------------------------------
+- Use official studio or remastered uploads when possible.
+  Search YouTube for: "[Song Name] official audio" or "[Song Name] remastered"
+  These come from the studio master and have cleaner frequency content
+  than live or TV recordings.
+
+- When picking a format from the menu, prefer:
+    1st choice: mp4a.40.2 (AAC-LC) — best frequency accuracy
+    2nd choice: opus        — very close in quality
+    Avoid:      mp4a.40.5  (HE-AAC) — fakes high frequencies, bad for ML
+
+- Pressing Enter automatically applies this same preference logic.
+
+
+----------------------------------------------------------------
+TROUBLESHOOTING
+----------------------------------------------------------------
+
+"python is not recognized..."
+  -> Python is not on PATH. Reinstall Python and check "Add to PATH".
+
+"ffmpeg is not recognized..."
+  -> Close and reopen PowerShell after installing FFmpeg.
+  -> Or pass the path directly with --ffmpeg "C:\path\to\ffmpeg.exe"
+
+"The ampersand (&) character is not allowed..."
+  -> You forgot to wrap the URL in double quotes. Always use:
+     python Stacher.py "https://www.youtube.com/watch?v=..."
+
+"No audio-only streams found..."
+  -> The video may be private, age-restricted, or geo-blocked.
+     Try a different YouTube URL for the same song.
+
+WAV file not found after download:
+  -> FFmpeg may not be installed or not on PATH.
+     Run: ffmpeg -version
+     to confirm it is available.
+
+================================================================
+
