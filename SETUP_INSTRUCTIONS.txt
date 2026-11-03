@@ -20,6 +20,9 @@ Verify it worked (open PowerShell and run):
   python --version
 
 
+
+**Important**
+Ensure to download STEP 2 and 3 to the path you have this code in.
 ----------------------------------------------------------------
 STEP 2 — Install FFmpeg
 ----------------------------------------------------------------
