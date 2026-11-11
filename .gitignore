@@ -11,4 +11,4 @@ trainingData/
 *.joblib
 
 # Generated feature datasets
-song_features.csv
+song_features.csv.DS_Store
