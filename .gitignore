@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Training audio datasets
+trainingData/
+
+# Generated ML artifacts
+*.joblib
+
+# Generated feature datasets
+song_features.csv
