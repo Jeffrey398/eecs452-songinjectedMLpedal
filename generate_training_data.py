@@ -10,6 +10,7 @@ import pandas as pd
 import librosa
 from scipy.signal import butter, sosfilt, sosfiltfilt
 import soundfile as sf
+from scipy.stats import skew
 
 ROOT = Path(__file__).resolve().parent
 # 32 features: 6 global spectral + 13 MFCC means + 13 MFCC stddevs
@@ -29,15 +30,88 @@ SR = 22050 # 22050 samples per second is a common sample rate for audio processi
 # TODO : consider what the pedal may operate at a higher sample right
 
 # convert audio features to ML inputs
+# def extract_features(y, sr=SR):
+#     centroid = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
+#     rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr)[0]
+#     rms = librosa.feature.rms(y=y)[0]
+#     flatness = librosa.feature.spectral_flatness(y=y)[0]
+#     mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
+#     vals = [np.mean(centroid), np.std(centroid), np.mean(rolloff), np.mean(rms), np.std(rms), np.mean(flatness)]
+#     vals.extend(np.mean(mfcc, axis=1))
+#     vals.extend(np.std(mfcc, axis=1))
+#     return dict(zip(FEATURE_COLUMNS, map(float, vals)))
+
+
+
+
 def extract_features(y, sr=SR):
+    # Ensure non-empty signal and handle silence safely
+    if len(y) == 0 or np.max(np.abs(y)) == 0:
+        return {col: 0.0 for col in FEATURE_COLUMNS}
+    
+    # Normalize amplitude so volume differences don't mask effect characteristics
+    y = librosa.util.normalize(y) #this could remove useful volume information, but it helps the model focus on tonal characteristics rather than loudness
+    
+    # 1. Envelope & Dynamics (Compression, Tremolo, Reverb tails)
+    rms = librosa.feature.rms(y=y)[0]
+    crest_factor = np.max(np.abs(y)) / (np.sqrt(np.mean(y**2)) + 1e-8)
+    
+    # Envelope Modulation Spectrum (EMS) -> detects Tremolo & LFO pulsing (1Hz - 15Hz)
+    rms_centered = rms - np.mean(rms)
+    env_fft = np.abs(np.fft.rfft(rms_centered))
+    env_freqs = np.fft.rfftfreq(len(rms_centered), d=512/sr)
+    lfo_mask = (env_freqs >= 0.5) & (env_freqs <= 15.0)
+    lfo_energy = np.max(env_fft[lfo_mask]) / (np.sum(env_fft) + 1e-8) if np.any(lfo_mask) else 0.0
+    lfo_peak_freq = env_freqs[lfo_mask][np.argmax(env_fft[lfo_mask])] if np.any(lfo_mask) else 0.0
+
+    # 2. Time-Based & Echo (Delay, Reverb)
+    # Autocorrelation of RMS envelope to catch delay repeats (100ms to 800ms)
+    rms_autocorr = librosa.autocorrelate(rms_centered)
+    rms_autocorr = rms_autocorr / (rms_autocorr[0] + 1e-8)
+    min_lag = int(0.1 * sr / 512)
+    max_lag = min(int(0.8 * sr / 512), len(rms_autocorr) - 1)
+    delay_peak = np.max(rms_autocorr[min_lag:max_lag]) if max_lag > min_lag else 0.0
+
+    # 3. Transients & Modulation (Phaser, Flanger, Reverb smearing)
+    onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+    flux_mean = np.mean(onset_env)
+    flux_max = np.max(onset_env)
+    flux_skew = skew(onset_env)
+
+    # 4. Harmonic & Nonlinear (Overdrive, Distortion, Fuzz)
+    y_harm, y_perc = librosa.effects.hpss(y) # computationally expensive. unrealistic for real-time processing, but fine for offline dataset generation.
+    harm_perc_ratio = np.mean(y_harm**2) / (np.mean(y_perc**2) + 1e-8)
+    
+    zcr = librosa.feature.zero_crossing_rate(y=y)[0]
     centroid = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
     rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr)[0]
-    rms = librosa.feature.rms(y=y)[0]
     flatness = librosa.feature.spectral_flatness(y=y)[0]
+    contrast = librosa.feature.spectral_contrast(y=y, sr=sr) # Catches comb-filtering (Flanger/Phaser)
+
+    # 5. Timbre & Trajectory (MFCCs + Deltas + Delta-Deltas)
     mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-    vals = [np.mean(centroid), np.std(centroid), np.mean(rolloff), np.mean(rms), np.std(rms), np.mean(flatness)]
+    mfcc_delta = librosa.feature.delta(mfcc)
+    mfcc_delta2 = librosa.feature.delta(mfcc, order=2)
+
+    # Helper to extract robust percentiles instead of just mean/std
+    def get_stats(arr):
+        return [np.percentile(arr, 10), np.percentile(arr, 50), np.percentile(arr, 90), np.std(arr)]
+
+    vals = [
+        crest_factor, lfo_energy, lfo_peak_freq, delay_peak,
+        flux_mean, flux_max, flux_skew, harm_perc_ratio
+    ]
+    
+    for feat in [rms, zcr, centroid, rolloff, flatness]:
+        vals.extend(get_stats(feat))
+        
+    vals.extend(np.mean(contrast, axis=1))
+    vals.extend(np.std(contrast, axis=1))
     vals.extend(np.mean(mfcc, axis=1))
     vals.extend(np.std(mfcc, axis=1))
+    vals.extend(np.mean(mfcc_delta, axis=1))
+    vals.extend(np.mean(mfcc_delta2, axis=1))
+
     return dict(zip(FEATURE_COLUMNS, map(float, vals)))
 
 # butter(N, Wn, btype='low', analog=False, output='ba', fs=None):
