@@ -1,6 +1,8 @@
 """
 extract_features.py - tone-feature extraction for the Song Injected ML Pedal.
 
+this script excludes sufficiently quiet frames (gaps between notes) and computes a fixed-length
+
 Three ways to use it:
 
   1. Library (import from the rest of the project, pipeline.py or the RF code)
