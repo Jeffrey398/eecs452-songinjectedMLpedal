@@ -9,7 +9,7 @@ from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.model_selection import GroupShuffleSplit
 from ML_Pedal.model.expanded_features import FEATURE_COLUMNS, SR
 
-TARGET_COLUMNS = ["drive", "tone", "level"]
+TARGET_COLUMNS = ["drive", "tone"]
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
     df = pd.read_csv(args.dataset)
     X = df[FEATURE_COLUMNS].to_numpy(dtype=float)
     Y = df[TARGET_COLUMNS].to_numpy(dtype=float)
-    groups = df["source_file"].to_numpy()
+    groups = (df["start_seconds"] // 30).astype(int).to_numpy() # prevents same musical passage across different pedal configurations form being in both training and testing
     if len(set(groups)) < 5:
         raise ValueError("At least five distinct recordings are recommended for grouped evaluation")
     if not np.isfinite(X).all() or not np.isfinite(Y).all():
@@ -39,9 +39,10 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump({"model": model, "features": FEATURE_COLUMNS,
                  "targets": TARGET_COLUMNS, "sample_rate": SR,
+                 "window_seconds": 5.0,
+                 "pedals": sorted(df["pedal"].unique().tolist()),
                  "version": "overdrive-recordings-v1"}, args.output)
     print(f"Saved {args.output}")
-    print("Caution: only ~26 source recordings; grouped scores may be unstable.")
 
 
 if __name__ == "__main__":

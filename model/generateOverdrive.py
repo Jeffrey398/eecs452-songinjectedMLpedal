@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 from ML_Pedal.model.expanded_features import FEATURE_COLUMNS, SR, extract_features
 
-PATTERN = re.compile(r"(?:^|_)drive(\d{1,3})_tone(\d{1,3})_level(\d{1,3})$", re.I)
-TARGET_COLUMNS = ["drive", "tone", "level"]
+PATTERN = re.compile(r"^a_(.+)_g([0-5])_t([0-5])$", re.I)
+TARGET_COLUMNS = ["drive", "tone"]
 
 
 def main():
@@ -17,6 +17,7 @@ def main():
     p.add_argument("--input-dir", type=Path, default=Path("overdrive"))
     p.add_argument("--duration", type=float, default=5.0)
     p.add_argument("--output", type=Path, default=Path("overdrive_training_data.csv"))
+    p.add_argument("--pedal", type=str, default=None)
     args = p.parse_args()
     if args.duration <= 0:
         p.error("--duration must be positive")
@@ -26,13 +27,17 @@ def main():
     if not paths:
         p.error(f"No WAV files found under {args.input_dir}")
     for path in paths:
-        match = PATTERN.search(path.stem)
+        match = PATTERN.fullmatch(path.stem)
+
         if not match:
-            print(f"Skipping filename without drive/tone/level labels: {path.name}")
             continue
-        knobs = [int(v) for v in match.groups()]
-        if any(v > 100 for v in knobs):
-            print(f"Skipping out-of-range labels: {path.name}")
+
+        pedal, gain, tone = match.groups()
+        pedal = pedal.lower()
+
+        drive = int(gain) / 5.0
+        tone = int(tone) / 5.0
+        if args.pedal and pedal != args.pedal.lower():
             continue
         y, _ = librosa.load(path, sr=SR, mono=True)
         source = str(path.relative_to(args.input_dir))
@@ -44,13 +49,19 @@ def main():
             if np.sqrt(np.mean(clip.astype(np.float64) ** 2)) < 1e-4:
                 continue
             features = extract_features(clip, SR)
-            rows.append({"source_file": source, "start_seconds": start / SR,
-                         **features, **dict(zip(TARGET_COLUMNS, [v / 100 for v in knobs]))})
+            rows.append({
+                "source_file": source,
+                "pedal": pedal,
+                "start_seconds": start / SR,
+                **features,
+                "drive": drive,
+                "tone": tone
+            })
             count += 1
         print(f"{path.name}: {count} examples")
     if not rows:
         raise RuntimeError("No usable labeled audio segments found")
-    columns = ["source_file", "start_seconds"] + FEATURE_COLUMNS + TARGET_COLUMNS
+    columns = ["source_file","pedal","start_seconds"] + FEATURE_COLUMNS + TARGET_COLUMNS
     args.output.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows, columns=columns).to_csv(args.output, index=False)
     print(f"Saved {len(rows)} examples from {len(set(r['source_file'] for r in rows))} recordings to {args.output}")
