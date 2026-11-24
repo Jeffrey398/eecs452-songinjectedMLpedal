@@ -1,5 +1,5 @@
 
-"""94 audio descriptors for Model 2."""
+"""122 audio descriptors for guitar tone and overdrive prediction."""
 
 import numpy as np
 import librosa
@@ -7,8 +7,18 @@ from scipy.stats import skew
 
 SR = 22050
 HOP_LENGTH = 512
+N_FFT = 2048
 
 STATS = ("p10", "p50", "p90", "std")
+
+# Frequency bands for tone prediction
+FREQUENCY_BANDS = {
+    "bass": (80, 250),
+    "low_mid": (250, 500),
+    "mid": (500, 2000),
+    "high_mid": (2000, 4000),
+    "treble": (4000, 10000),
+}
 
 FEATURE_COLUMNS = (
     [
@@ -30,7 +40,7 @@ FEATURE_COLUMNS = (
         f"contrast_{i}_{stat}"
         for stat in ("mean", "std")
         for i in range(7)
-    ] 
+    ]
     + [
         f"mfcc_{i}_{stat}"
         for stat in ("mean", "std")
@@ -38,9 +48,30 @@ FEATURE_COLUMNS = (
     ]
     + [f"mfcc_{i}_delta_mean" for i in range(1, 14)]
     + [f"mfcc_{i}_delta2_mean" for i in range(1, 14)]
+
+    # NEW: Spectral bandwidth
+    + [
+        f"bandwidth_{stat}"
+        for stat in STATS
+    ]
+
+    # NEW: Normalized frequency band energies
+    + [
+        f"{band}_energy_{stat}"
+        for band in FREQUENCY_BANDS
+        for stat in STATS
+    ]
+
+    # NEW: Tonal brightness and spectral slope
+    + [
+        "high_low_ratio_mean",
+        "high_low_ratio_std",
+        "spectral_slope_mean",
+        "spectral_slope_std",
+    ]
 )
 
-assert len(FEATURE_COLUMNS) == 94
+assert len(FEATURE_COLUMNS) == 122
 
 
 def extract_features(y, sr=SR):
@@ -185,7 +216,125 @@ def extract_features(y, sr=SR):
         delta = np.zeros_like(mfcc)
         delta2 = np.zeros_like(mfcc)
 
-    # 8. Summarize all features
+    # 8. NEW: STFT and power spectrum
+    stft = librosa.stft(
+        y,
+        n_fft=N_FFT,
+        hop_length=HOP_LENGTH
+    )
+
+    magnitude = np.abs(stft)
+    power = magnitude ** 2
+
+    freqs = librosa.fft_frequencies(
+        sr=sr,
+        n_fft=N_FFT
+    )
+
+    # Ignore frames more than 40 dB below the loudest frame.
+    # This reduces the influence of silence and noise.
+    frame_power = np.sum(power, axis=0)
+
+    active = frame_power > (
+        np.max(frame_power) * 1e-4
+    )
+
+    if not np.any(active):
+        active = np.ones(
+            power.shape[1], dtype=bool
+        )
+
+    active_power = power[:, active]
+    active_magnitude = magnitude[:, active]
+
+    # 9. NEW: Spectral bandwidth
+    bandwidth = librosa.feature.spectral_bandwidth(
+        S=active_magnitude,
+        sr=sr,
+        n_fft=N_FFT
+    )[0]
+
+    # 10. NEW: Normalized frequency band energies
+    eps = 1e-12
+
+    total_energy = np.sum(
+        active_power, axis=0
+    ) + eps
+
+    band_energies = {}
+
+    for band, (low, high) in FREQUENCY_BANDS.items():
+
+        band_mask = (
+            (freqs >= low) &
+            (freqs < high)
+        )
+
+        energy = np.sum(
+            active_power[band_mask, :],
+            axis=0
+        )
+
+        # Relative energy instead of absolute amplitude
+        band_energies[band] = (
+            energy / total_energy
+        )
+
+    # 11. NEW: High-to-low frequency energy ratio
+    low_energy = (
+        band_energies["bass"]
+        + band_energies["low_mid"]
+    )
+
+    high_energy = (
+        band_energies["high_mid"]
+        + band_energies["treble"]
+    )
+
+    # Convert power ratio to decibels
+    high_low_ratio = 10 * np.log10(
+        (high_energy + eps)
+        / (low_energy + eps)
+    )
+
+    # 12. NEW: Spectral slope
+    # Fit spectral power in dB against log-frequency.
+    # The resulting slope is measured in dB/octave.
+    slope_mask = (
+        (freqs >= 80)
+        & (freqs <= 10000)
+    )
+
+    if np.sum(slope_mask) >= 2:
+
+        log_freqs = np.log2(
+            freqs[slope_mask]
+        )
+
+        normalized_power = (
+            active_power[slope_mask, :]
+            / total_energy
+        )
+
+        power_db = 10 * np.log10(
+            normalized_power + eps
+        )
+
+        # Center the independent variable
+        x = log_freqs - np.mean(log_freqs)
+
+        # Vectorized linear regression across frames
+        spectral_slope = (
+            np.sum(x[:, None] * power_db, axis=0)
+            / (np.sum(x ** 2) + eps)
+        )
+
+    else:
+        spectral_slope = np.zeros(
+            active_power.shape[1]
+        )
+
+    # 13. Summarize original 94 features
     vals = [
         crest,
         lfo_energy,
@@ -216,6 +365,29 @@ def extract_features(y, sr=SR):
 
     vals.extend(np.mean(delta, axis=1))
     vals.extend(np.mean(delta2, axis=1))
+
+    # 14. Append new 28 tone-specific features
+
+    # Spectral bandwidth: 4 features
+    vals.extend(get_stats(bandwidth))
+
+    # Frequency band energies: 20 features
+    for band in FREQUENCY_BANDS:
+        vals.extend(
+            get_stats(band_energies[band])
+        )
+
+    # High-to-low energy ratio: 2 features
+    vals.extend([
+        np.mean(high_low_ratio),
+        np.std(high_low_ratio),
+    ])
+
+    # Spectral slope: 2 features
+    vals.extend([
+        np.mean(spectral_slope),
+        np.std(spectral_slope),
+    ])
 
     # Replace NaN and infinity with zero
     vals = np.nan_to_num(

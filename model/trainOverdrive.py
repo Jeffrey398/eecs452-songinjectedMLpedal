@@ -41,7 +41,7 @@ def main():
                  "targets": TARGET_COLUMNS, "sample_rate": SR,
                  "window_seconds": 5.0,
                  "pedals": sorted(df["pedal"].unique().tolist()),
-                 "version": "overdrive-recordings-v1"}, args.output)
+                 "version": "pod-set-v2-122-features"}, args.output)
     print(f"Saved {args.output}")
 
 
