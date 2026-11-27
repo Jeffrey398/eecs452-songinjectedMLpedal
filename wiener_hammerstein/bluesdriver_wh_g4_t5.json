@@ -1,0 +1,20 @@
+{
+    "pedal": "bluesdriver",
+    "sample_rate": 48000,
+    "drive": 0.8,
+    "tone": 1.0,
+    "parameters": {
+        "pre_hp": 499.99999999999994,
+        "pre_lp": 19999.999999999956,
+        "gain": 35.70065805195353,
+        "bias": -0.017385267222691122,
+        "post_lp": 19999.99999999477,
+        "output_gain": 0.2809002642526132
+    },
+    "train_rmse": 0.044835110434586684,
+    "train_esr": 0.07385151426766318,
+    "test_rmse": 0.035427824542152174,
+    "test_esr": 0.03991512090559998,
+    "optimizer_success": true,
+    "optimizer_message": "`ftol` termination condition is satisfied."
+}

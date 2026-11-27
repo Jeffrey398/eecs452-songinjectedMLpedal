@@ -1,0 +1,7 @@
+scikit-learn==1.6.1
+numpy==1.26.4
+librosa==0.11.0
+scipy==1.13.1
+joblib==1.5.3
+soundfile
+pyserial

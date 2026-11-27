@@ -1,0 +1,20 @@
+{
+    "pedal": "bluesdriver",
+    "sample_rate": 48000,
+    "drive": 0.4,
+    "tone": 0.4,
+    "parameters": {
+        "pre_hp": 338.18960668225145,
+        "pre_lp": 19999.999999999996,
+        "gain": 0.14419911012180817,
+        "bias": 0.07636228879517742,
+        "post_lp": 19999.999999999996,
+        "output_gain": 3.33725936042563
+    },
+    "train_rmse": 0.005888233109258701,
+    "train_esr": 0.04431824532799832,
+    "test_rmse": 0.006355335308653171,
+    "test_esr": 0.0669215642497598,
+    "optimizer_success": false,
+    "optimizer_message": "The maximum number of function evaluations is exceeded."
+}

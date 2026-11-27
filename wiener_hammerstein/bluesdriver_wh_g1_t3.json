@@ -1,0 +1,20 @@
+{
+    "pedal": "bluesdriver",
+    "sample_rate": 48000,
+    "drive": 0.2,
+    "tone": 0.6,
+    "parameters": {
+        "pre_hp": 499.99999999999994,
+        "pre_lp": 19999.999999999996,
+        "gain": 0.10000416139515665,
+        "bias": 0.28027450781289714,
+        "post_lp": 19999.999999999996,
+        "output_gain": 3.2106971464406393
+    },
+    "train_rmse": 0.005443675319308259,
+    "train_esr": 0.10858764202369929,
+    "test_rmse": 0.002746172104910484,
+    "test_esr": 0.05017825926463371,
+    "optimizer_success": true,
+    "optimizer_message": "`xtol` termination condition is satisfied."
+}
